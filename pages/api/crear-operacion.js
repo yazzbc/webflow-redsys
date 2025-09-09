@@ -41,23 +41,24 @@ export default function handler(req, res) {
   const order = String(req.query.order || `ORD${Date.now()}`);
 
   const params = {
-    DS_MERCHANT_AMOUNT: amount, // en céntimos
-    DS_MERCHANT_ORDER: order, // hasta 12 chars
-    DS_MERCHANT_MERCHANTCODE: MERCHANT_CODE,
-    DS_MERCHANT_CURRENCY: '978', // EUR
-    DS_MERCHANT_TRANSACTIONTYPE: '0',
-    DS_MERCHANT_TERMINAL: TERMINAL,
-    DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
-    DS_MERCHANT_URLOK: `${base}/pago-ok`,
-    DS_MERCHANT_URLKO: `${base}/pago-ko`,
+    Ds_Merchant_Amount: amount,           // céntimos
+    Ds_Merchant_Order: order,             // 4-12 chars recomendado
+    Ds_Merchant_MerchantCode: MERCHANT_CODE,
+    Ds_Merchant_Currency: '978',          // EUR
+    Ds_Merchant_TransactionType: '0',
+    Ds_Merchant_Terminal: TERMINAL,
+    Ds_Merchant_MerchantURL: `${base}/api/redsys/notificacion`,
+    Ds_Merchant_UrlOK: `${base}/pago-ok`,
+    Ds_Merchant_UrlKO: `${base}/pago-ko`,
   };
 
   const Ds_MerchantParameters = toBase64(params);
   const Ds_Signature = signParams(
     Ds_MerchantParameters,
-    params.DS_MERCHANT_ORDER,
+    params.Ds_Merchant_Order,
     SECRET_KEY
   );
+
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(`<!doctype html><html><body onload="document.forms[0].submit()">
