@@ -3,9 +3,9 @@ import crypto from 'crypto';
 
 // --- Config (sandbox por defecto) ---
 const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE || '999008881'; // FUC pruebas
-const TERMINAL = process.env.REDSYS_TERMINAL || '001';
+const TERMINAL = process.env.REDSYS_TERMINAL || '1'; // en los ejemplos aparece "1"
 const SECRET_KEY =
-  process.env.REDSYS_SECRET_KEY || 'sq7HjrUOBfKmC576ILgskD5srU870gJ7'; // clave pruebas (Base64)
+  process.env.REDSYS_SECRET_KEY || 'sq7HjrUOBfKmC576ILgskD5srU870gJ7'; // clave Base64 de pruebas
 const ENV = process.env.REDSYS_ENV || 'test';
 
 const REDSYS_URL =
@@ -15,27 +15,32 @@ const REDSYS_URL =
 
 // --- Utils ---
 function toBase64(obj) {
-  return Buffer.from(JSON.stringify(obj)).toString('base64');
+  return Buffer.from(JSON.stringify(obj)).toString('base64'); // sin CR/LF
 }
 
-// Derivación de clave por operación: 3DES-CBC (IV=0) sobre Ds_Merchant_Order
+// Derivación de clave por operación: cifrar ORDER con 3DES usando la clave del comercio (Base64→bin)
+// El manual no fija modo/padding; la librería oficial usa 3DES-CBC con IV=0 y padding OpenSSL.
 function deriveKey(order, merchantKeyB64) {
-  const k = Buffer.from(merchantKeyB64, 'base64'); // clave comercio (binario)
-  const iv = Buffer.alloc(8, 0);                   // IV = 00000000
-  const cipher = crypto.createCipheriv('des-ede3-cbc', k, iv);
+  const key = Buffer.from(merchantKeyB64, 'base64');
+  const iv = Buffer.alloc(8, 0);
+  const cipher = crypto.createCipheriv('des-ede3-cbc', key, iv);
   cipher.setAutoPadding(true);
   return Buffer.concat([cipher.update(order, 'utf8'), cipher.final()]);
 }
 
-// Firma HMAC-SHA256 sobre Ds_MerchantParameters
+// Firma HMAC-SHA256 sobre el Base64 de Ds_MerchantParameters (resultado en Base64 estándar)
 function signParams(paramsBase64, order, merchantKeyB64) {
   const k = deriveKey(order, merchantKeyB64);
   return crypto.createHmac('sha256', k).update(paramsBase64).digest('base64');
 }
 
-// Convertir firma a Base64URL (obligatorio)
-function toBase64Url(b64) {
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+// Normalizar pedido: 12 dígitos, empezando por dígitos (requisito práctico de Redsys)
+function normalizeOrder(raw) {
+  let s = String(raw || '');
+  s = s.replace(/\D/g, ''); // sólo dígitos
+  if (s.length < 4) s = (Date.now() + '').slice(-12);
+  if (s.length > 12) s = s.slice(0, 12);
+  return s;
 }
 
 export default function handler(req, res) {
@@ -43,27 +48,25 @@ export default function handler(req, res) {
   const host = req.headers.host;
   const base = `${proto}://${host}`;
 
-  // Valores de ejemplo si no vienen por query
-  const amount = String(req.query.amount || '249'); // céntimos (2,49€)
-  // Mejor numérico 8-12 dígitos para pruebas
-  const order = String(req.query.order || `${Date.now()}`.slice(-12));
+  // valores por defecto
+  const amount = String(req.query.amount || '249'); // céntimos → 2,49 €
+  const order = normalizeOrder(req.query.order || `${Date.now()}`);
 
-  // Parámetros de Redsys (ojo a la capitalización Ds_Merchant_*)
+  // === OJO: claves en MAYÚSCULAS como en el manual ===
   const params = {
-    Ds_Merchant_Amount: amount,                 // en céntimos
-    Ds_Merchant_Order: order,                   // 4-12 chars recomendado
-    Ds_Merchant_MerchantCode: MERCHANT_CODE,
-    Ds_Merchant_Currency: '978',                // EUR
-    Ds_Merchant_TransactionType: '0',
-    Ds_Merchant_Terminal: TERMINAL,
-    Ds_Merchant_MerchantURL: `${base}/api/redsys/notificacion`,
-    Ds_Merchant_UrlOK: `${base}/pago-ok`,
-    Ds_Merchant_UrlKO: `${base}/pago-ko`,
+    DS_MERCHANT_AMOUNT: amount,            // céntimos
+    DS_MERCHANT_ORDER: order,              // 4-12 y empieza por dígitos
+    DS_MERCHANT_MERCHANTCODE: MERCHANT_CODE,
+    DS_MERCHANT_CURRENCY: '978',           // EUR
+    DS_MERCHANT_TRANSACTIONTYPE: '0',
+    DS_MERCHANT_TERMINAL: TERMINAL,
+    DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
+    DS_MERCHANT_URLOK: `${base}/pago-ok`,
+    DS_MERCHANT_URLKO: `${base}/pago-ko`,
   };
 
   const Ds_MerchantParameters = toBase64(params);
-  const signatureB64 = signParams(Ds_MerchantParameters, params.Ds_Merchant_Order, SECRET_KEY);
-  const Ds_Signature = toBase64Url(signatureB64);
+  const Ds_Signature = signParams(Ds_MerchantParameters, params.DS_MERCHANT_ORDER, SECRET_KEY);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(`<!doctype html>
@@ -76,3 +79,4 @@ export default function handler(req, res) {
   </form>
 </body></html>`);
 }
+
