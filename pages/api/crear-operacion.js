@@ -13,35 +13,34 @@ const REDSYS_URL =
     ? 'https://sis.redsys.es/sis/realizarPago'
     : 'https://sis-t.redsys.es:25443/sis/realizarPago';
 
-// ---- Utils ----
+// === IMPORTANTE ===
+// Para que el cliente VUELVA a tu Webflow:
+const FRONTEND = process.env.FRONTEND_BASE_URL
+  || 'https://www.grupomoterodescubridoreshuelva.com'; // <-- tu dominio Webflow
 
-// Base64 del JSON sin retornos de carro (como pide el manual)
+// ---- Utils ----
 function toBase64(obj) {
-  return Buffer.from(JSON.stringify(obj)).toString('base64');
+  return Buffer.from(JSON.stringify(obj)).toString('base64'); // sin CR/LF
 }
 
-// 3DES-CBC con IV=0 y ZERO-PADDING sobre Ds_Merchant_Order (igual que la librería oficial)
+// 3DES-CBC con IV=0 y ZERO-PADDING sobre Ds_Merchant_Order (como la librería oficial)
 function deriveKey(order, merchantKeyB64) {
-  const key = Buffer.from(merchantKeyB64, 'base64'); // 24 bytes
+  const key = Buffer.from(merchantKeyB64, 'base64');
   const iv = Buffer.alloc(8, 0);
-
-  // ZERO-PADDING a múltiplo de 8 bytes
-  const data = Buffer.from(order, 'utf8');
+  const data = Buffer.from(String(order || ''), 'utf8');
   const padLen = 8 - (data.length % 8 || 8);
   const padded = Buffer.concat([data, Buffer.alloc(padLen, 0)]);
-
   const cipher = crypto.createCipheriv('des-ede3-cbc', key, iv);
-  cipher.setAutoPadding(false); // usamos nuestro padding a 0x00
+  cipher.setAutoPadding(false);
   return Buffer.concat([cipher.update(padded), cipher.final()]);
 }
 
-// HMAC-SHA256 sobre el Base64 de Ds_MerchantParameters con la clave derivada
 function signParams(paramsBase64, order, merchantKeyB64) {
   const k = deriveKey(order, merchantKeyB64);
   return crypto.createHmac('sha256', k).update(paramsBase64).digest('base64'); // Base64 estándar
 }
 
-// Normaliza pedido: 12 dígitos (empieza por dígitos)
+// Normaliza pedido a 12 dígitos (empieza por dígitos)
 function normalizeOrder(raw) {
   let s = String(raw || '').replace(/\D/g, '');
   if (s.length < 4) s = (Date.now() + '').slice(-12);
@@ -52,15 +51,12 @@ function normalizeOrder(raw) {
 export default function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers.host;
-  const base = `${proto}://${host}`;
+  const base = `${proto}://${host}`; // Vercel: aquí recibimos la notificación firmada
 
-  // Valores por defecto si no se pasan por query
-  const amount = String(req.query.amount || '249');       // céntimos (2,49 €)
+  const amount = String(req.query.amount || '249'); // céntimos (2,49 €)
   const order  = normalizeOrder(req.query.order || Date.now());
 
-  // --- IMPORTANTE: claves en MAYÚSCULAS (como los ejemplos del manual) ---
-  // Campos mínimos: Amount, Order, MerchantCode, Currency, TransactionType, Terminal,
-  // MerchantURL/URLOK/URLKO (ver ejemplos del PDF) :contentReference[oaicite:2]{index=2}
+  // Parámetros en MAYÚSCULAS (como en ejemplos oficiales)
   const params = {
     DS_MERCHANT_AMOUNT: amount,                 // céntimos
     DS_MERCHANT_ORDER: order,                   // 4–12 dígitos
@@ -68,15 +64,14 @@ export default function handler(req, res) {
     DS_MERCHANT_CURRENCY: '978',                // EUR
     DS_MERCHANT_TRANSACTIONTYPE: '0',
     DS_MERCHANT_TERMINAL: TERMINAL,
-    DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
-    DS_MERCHANT_URLOK: `${base}/pago-ok`,
-    DS_MERCHANT_URLKO: `${base}/pago-ko`,
+    DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,     // servidor↔servidor (Vercel)
+    DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,              // <-- vuelve a tu Webflow (OK)
+    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,                // <-- vuelve a tu Webflow (KO)
   };
 
   const Ds_MerchantParameters = toBase64(params);
   const Ds_Signature = signParams(Ds_MerchantParameters, params.DS_MERCHANT_ORDER, SECRET_KEY);
 
-  // Formulario de Redirección (3 campos exactos + URL de pruebas) :contentReference[oaicite:3]{index=3}
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(`<!doctype html>
 <html><body onload="document.forms[0].submit()">
@@ -88,3 +83,4 @@ export default function handler(req, res) {
   </form>
 </body></html>`);
 }
+
