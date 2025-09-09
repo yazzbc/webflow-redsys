@@ -8,15 +8,17 @@ const SECRET_KEY =
   process.env.REDSYS_SECRET_KEY || 'sq7HjrUOBfKmC576ILgskD5srU870gJ7'; // clave (Base64) pruebas
 const ENV = process.env.REDSYS_ENV || 'test';
 
+// Importe fijo (en céntimos) controlado por variable de entorno:
+const PRICE_CENTS = String(process.env.PRICE_CENTS || '3000'); // <-- 3000 = 30,00 €
+
 const REDSYS_URL =
   ENV === 'real'
     ? 'https://sis.redsys.es/sis/realizarPago'
     : 'https://sis-t.redsys.es:25443/sis/realizarPago';
 
-// === IMPORTANTE ===
 // Para que el cliente VUELVA a tu Webflow:
 const FRONTEND = process.env.FRONTEND_BASE_URL
-  || 'https://www.grupomoterodescubridoreshuelva.com'; // <-- tu dominio Webflow
+  || 'https://www.grupomoterodescubridoreshuelva.com';
 
 // ---- Utils ----
 function toBase64(obj) {
@@ -53,20 +55,22 @@ export default function handler(req, res) {
   const host = req.headers.host;
   const base = `${proto}://${host}`; // Vercel: aquí recibimos la notificación firmada
 
-  const amount = String(req.query.amount || '249'); // céntimos (2,49 €)
+  // ✅ Fijamos el importe desde variable de entorno (no aceptamos amount por URL)
+  const amount = PRICE_CENTS;
+  // El order puedes pasarlo por query si quieres, si no lo generamos:
   const order  = normalizeOrder(req.query.order || Date.now());
 
   // Parámetros en MAYÚSCULAS (como en ejemplos oficiales)
   const params = {
-    DS_MERCHANT_AMOUNT: amount,                 // céntimos
+    DS_MERCHANT_AMOUNT: amount,                 // céntimos (fijo desde backend)
     DS_MERCHANT_ORDER: order,                   // 4–12 dígitos
     DS_MERCHANT_MERCHANTCODE: MERCHANT_CODE,
     DS_MERCHANT_CURRENCY: '978',                // EUR
     DS_MERCHANT_TRANSACTIONTYPE: '0',
     DS_MERCHANT_TERMINAL: TERMINAL,
     DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,     // servidor↔servidor (Vercel)
-    DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,              // <-- vuelve a tu Webflow (OK)
-    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,                // <-- vuelve a tu Webflow (KO)
+    DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,              // Webflow OK
+    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,                // Webflow KO
   };
 
   const Ds_MerchantParameters = toBase64(params);
@@ -83,4 +87,5 @@ export default function handler(req, res) {
   </form>
 </body></html>`);
 }
+
 
