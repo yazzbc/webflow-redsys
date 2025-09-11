@@ -80,13 +80,12 @@ export default async function handler(req, res) {
 
     const autorizado = decoded.Ds_Response === "0000";
 
-    // ✅ Parsear MerchantData correctamente (URL-decoded + JSON)
+    // Parsear MerchantData (puede venir urlencoded)
     let merchantData = {};
     try {
-      const rawData = decoded.Ds_MerchantData
-        ? decodeURIComponent(decoded.Ds_MerchantData)
-        : "{}";
-      merchantData = JSON.parse(rawData);
+      merchantData = JSON.parse(
+        decodeURIComponent(decoded.Ds_MerchantData || "{}")
+      );
     } catch (e) {
       console.warn("MerchantData no es JSON válido:", decoded.Ds_MerchantData);
     }
@@ -100,17 +99,17 @@ export default async function handler(req, res) {
 
     // Guardar en Google Sheets
     await appendToSheet([
-      decoded.Ds_Date || "",
-      decoded.Ds_Hour || "",
+      decodeURIComponent(decoded.Ds_Date || ""),   // ✅ fecha limpia
+      decodeURIComponent(decoded.Ds_Hour || ""),   // ✅ hora limpia
       decoded.Ds_Order || "",
-      decoded.Ds_Amount || "",
+      decoded.Ds_Amount ? String(Number(decoded.Ds_Amount) / 100) : "",
       autorizado ? "Sí" : "No",
       decoded.Ds_Response || "",
       decoded.Ds_Card_Number || "",
       decoded.Ds_Card_Country || "",
       decoded.Ds_MerchantCode || "",
-      merchantData.nombre || "", // 👈 Nombre
-      merchantData.email || "",  // 👈 Email
+      merchantData.nombre || "",
+      merchantData.email || "",
     ]);
 
     res.status(200).send("OK");
