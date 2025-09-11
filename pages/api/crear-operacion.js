@@ -1,8 +1,8 @@
-// Al principio de crear-operacion.js
-export const config = { api: { bodyParser: false } };
-
 // pages/api/crear-operacion.js
 import crypto from 'crypto';
+
+// 🚨 Necesario para que Vercel no intente parsear el body antes
+export const config = { api: { bodyParser: false } };
 
 // ---- Config (sandbox por defecto) ----
 const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE || '999008881'; // FUC pruebas
@@ -63,7 +63,6 @@ export default async function handler(req, res) {
   let email = '';
 
   if (req.method === 'POST') {
-    // Webflow envía por defecto en formato x-www-form-urlencoded
     const raw = await new Promise((resolve) => {
       let data = '';
       req.on('data', (chunk) => (data += chunk));
@@ -107,5 +106,3 @@ export default async function handler(req, res) {
   </form>
 </body></html>`);
 }
-
-
