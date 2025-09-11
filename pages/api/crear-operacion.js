@@ -56,6 +56,23 @@ export default async function handler(req, res) {
   const host = req.headers.host;
   const base = `${proto}://${host}`;
 
+  // ✅ Capturamos datos del form (si los manda Webflow)
+  let nombre = "";
+  let email = "";
+
+  if (req.method === "POST") {
+    const raw = await new Promise((resolve) => {
+      let data = "";
+      req.on("data", (chunk) => (data += chunk));
+      req.on("end", () => resolve(data));
+    });
+    console.log("RAW FORM DATA:", raw); // 👀 para ver qué llega desde Webflow
+
+    const paramsForm = new URLSearchParams(raw);
+    nombre = paramsForm.get("nombre") || paramsForm.get("data-nombre") || "";
+    email = paramsForm.get("email") || paramsForm.get("data-email") || "";
+  }
+
   // ✅ Fijamos importe y generamos order único
   const amount = PRICE_CENTS;
   const order = normalizeOrder();
@@ -88,6 +105,7 @@ export default async function handler(req, res) {
   console.log("Order generado:", order);
   console.log("Importe (cents):", amount);
   console.log("Params (JSON):", params);
+  console.log("Nombre:", nombre, "Email:", email);
   console.log("Ds_Signature:", Ds_Signature);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
