@@ -108,7 +108,6 @@ async function appendToSheet(row) {
   }
 }
 
-
 async function appendToExcelSheet(row) {
   if (!LOG_TO_EXCEL) return;
   try {
@@ -118,8 +117,6 @@ async function appendToExcelSheet(row) {
     console.error('❌ Error escribiendo en hoja Excel (extra):', err);
   }
 }
-
-// ... resto de tu código igual ...
 
 // ==== Handler principal ====
 export default async function handler(req, res) {
@@ -164,23 +161,27 @@ export default async function handler(req, res) {
 
     const autorizado = responseCode >= 0 && responseCode <= 99;
 
-    // 👇 MerchantData
+    // 👇 MerchantData (nombre/email)
     let nombre = '';
     let email = '';
     let merchantDataRaw = data.Ds_MerchantData || data.DS_MERCHANTDATA || '';
 
     if (merchantDataRaw) {
       try {
-        const maybeDecoded = decodeURIComponent(merchantDataRaw);
+        // 1️⃣ Limpiamos HTML entities (&#34; → ")
+        const decodedEntities = merchantDataRaw
+          .replace(/&quot;|&#34;/g, '"')
+          .replace(/&amp;/g, '&');
+
+        // 2️⃣ Intentamos decodificar URL
+        const maybeDecoded = decodeURIComponent(decodedEntities);
+
+        // 3️⃣ Parseamos JSON
         const extra = JSON.parse(maybeDecoded);
         nombre = extra.nombre || '';
         email = extra.email || '';
-      } catch {
-        try {
-          const extra = JSON.parse(merchantDataRaw);
-          nombre = extra.nombre || '';
-          email = extra.email || '';
-        } catch {}
+      } catch (e) {
+        console.warn('❌ No se pudo parsear MerchantData:', merchantDataRaw);
       }
     }
 
@@ -220,7 +221,6 @@ export default async function handler(req, res) {
       email,
     ];
 
-    // 🚨 LOGS ESPECIALES PARA GOOGLE SHEETS
     console.log("🟡 Intentando añadir fila a Google Sheets:", row);
 
     try {
@@ -230,7 +230,6 @@ export default async function handler(req, res) {
       console.error("❌ Error al añadir a Google Sheets:", err);
     }
 
-    // Hoja extra (si está activada)
     await appendToExcelSheet(row);
 
     res.status(200).send('OK');
