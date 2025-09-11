@@ -5,9 +5,9 @@ import crypto from "crypto";
 export const config = { api: { bodyParser: false } };
 
 // ---- Config ----
-const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE; 
-const TERMINAL = process.env.REDSYS_TERMINAL;           
-const SECRET_KEY = process.env.REDSYS_SECRET_KEY;      
+const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE;
+const TERMINAL = process.env.REDSYS_TERMINAL;
+const SECRET_KEY = process.env.REDSYS_SECRET_KEY;
 const ENV = process.env.REDSYS_ENV || "test";
 
 // Importe fijo (en céntimos)
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       req.on("data", (chunk) => (data += chunk));
       req.on("end", () => resolve(data));
     });
-    console.log("RAW FORM DATA:", raw); // 👀 para ver qué llega desde Webflow
+    console.log("RAW FORM DATA:", raw);
 
     const paramsForm = new URLSearchParams(raw);
     nombre = paramsForm.get("nombre") || paramsForm.get("data-nombre") || "";
@@ -86,8 +86,8 @@ export default async function handler(req, res) {
     DS_MERCHANT_TERMINAL: TERMINAL,
     DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
     DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,
-    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`
-    // ❌ Quitado DS_MERCHANT_MERCHANTDATA
+    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,
+    DS_MERCHANT_MERCHANTDATA: JSON.stringify({ nombre, email }), // 👈 añadido
   };
 
   const Ds_MerchantParameters = toBase64(params);
