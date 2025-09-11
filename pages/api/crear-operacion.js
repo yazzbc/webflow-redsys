@@ -1,9 +1,6 @@
 // pages/api/crear-operacion.js
 import crypto from 'crypto';
 
-// 🚨 Necesario para que Vercel no intente parsear el body antes
-export const config = { api: { bodyParser: false } };
-
 // ---- Config (sandbox por defecto) ----
 const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE || '999008881'; // FUC pruebas
 const TERMINAL = process.env.REDSYS_TERMINAL || '1';                   // en test suele ser "1"
@@ -56,13 +53,14 @@ function normalizeOrder(raw) {
 export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers.host;
-  const base = `${proto}://${host}`;
+  const base = ${proto}://${host};
 
   // ✅ Leer nombre y email enviados desde el formulario de Webflow
   let nombre = '';
   let email = '';
 
   if (req.method === 'POST') {
+    // Webflow envía por defecto en formato x-www-form-urlencoded
     const raw = await new Promise((resolve) => {
       let data = '';
       req.on('data', (chunk) => (data += chunk));
@@ -72,9 +70,6 @@ export default async function handler(req, res) {
     nombre = paramsForm.get('nombre') || '';
     email = paramsForm.get('email') || '';
   }
-
-  // 🔎 DEBUG
-  console.log("Form data recibido:", { nombre, email });
 
   // ✅ Fijamos el importe desde variable de entorno
   const amount = PRICE_CENTS;
@@ -87,9 +82,9 @@ export default async function handler(req, res) {
     DS_MERCHANT_CURRENCY: '978',
     DS_MERCHANT_TRANSACTIONTYPE: '0',
     DS_MERCHANT_TERMINAL: TERMINAL,
-    DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
-    DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,
-    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,
+    DS_MERCHANT_MERCHANTURL: ${base}/api/redsys/notificacion,
+    DS_MERCHANT_URLOK: ${FRONTEND}/checkout/gracias,
+    DS_MERCHANT_URLKO: ${FRONTEND}/checkout/error,
 
     // 👉 Aquí guardamos nombre/email en MerchantData
     DS_MERCHANT_MERCHANTDATA: JSON.stringify({ nombre, email }),
@@ -99,7 +94,7 @@ export default async function handler(req, res) {
   const Ds_Signature = signParams(Ds_MerchantParameters, params.DS_MERCHANT_ORDER, SECRET_KEY);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.status(200).send(`<!doctype html>
+  res.status(200).send(<!doctype html>
 <html><body onload="document.forms[0].submit()">
   <form action="${REDSYS_URL}" method="POST">
     <input type="hidden" name="Ds_SignatureVersion" value="HMAC_SHA256_V1" />
@@ -107,5 +102,5 @@ export default async function handler(req, res) {
     <input type="hidden" name="Ds_Signature" value="${Ds_Signature}" />
     <noscript><button>Pagar</button></noscript>
   </form>
-</body></html>`);
+</body></html>);
 }
