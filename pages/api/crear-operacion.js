@@ -76,6 +76,14 @@ export default async function handler(req, res) {
   const amount = PRICE_CENTS;
   const order = normalizeOrder();
 
+  // 🔎 DEBUG inicial
+  console.log("=== NUEVA OPERACIÓN REDSYS ===");
+  console.log("ENV:", ENV);
+  console.log("MERCHANT_CODE (FUC):", MERCHANT_CODE);
+  console.log("TERMINAL:", TERMINAL);
+  console.log("Order generado:", order);
+  console.log("Importe (cents):", amount);
+
   const params = {
     DS_MERCHANT_AMOUNT: amount,
     DS_MERCHANT_ORDER: order,
@@ -96,10 +104,7 @@ export default async function handler(req, res) {
     SECRET_KEY
   );
 
-  // 🔎 LOGS DE DEPURACIÓN
-  console.log("=== NUEVA OPERACIÓN REDSYS ===");
-  console.log("ENV:", ENV);
-  console.log("Order:", order);
+  // 🔎 DEBUG final
   console.log("Params (JSON):", params);
   console.log("Ds_MerchantParameters (base64):", Ds_MerchantParameters);
   console.log("Ds_Signature:", Ds_Signature);
