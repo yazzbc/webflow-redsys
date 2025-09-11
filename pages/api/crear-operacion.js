@@ -50,27 +50,44 @@ function normalizeOrder(raw) {
   return s;
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers.host;
-  const base = `${proto}://${host}`; // Vercel: aquí recibimos la notificación firmada
+  const base = `${proto}://${host}`;
 
-  // ✅ Fijamos el importe desde variable de entorno (no aceptamos amount por URL)
+  // ✅ Leer nombre y email enviados desde el formulario de Webflow
+  let nombre = '';
+  let email = '';
+
+  if (req.method === 'POST') {
+    // Webflow envía por defecto en formato x-www-form-urlencoded
+    const raw = await new Promise((resolve) => {
+      let data = '';
+      req.on('data', (chunk) => (data += chunk));
+      req.on('end', () => resolve(data));
+    });
+    const paramsForm = new URLSearchParams(raw);
+    nombre = paramsForm.get('nombre') || '';
+    email = paramsForm.get('email') || '';
+  }
+
+  // ✅ Fijamos el importe desde variable de entorno
   const amount = PRICE_CENTS;
-  // El order puedes pasarlo por query si quieres, si no lo generamos:
-  const order  = normalizeOrder(req.query.order || Date.now());
+  const order = normalizeOrder(Date.now());
 
-  // Parámetros en MAYÚSCULAS (como en ejemplos oficiales)
   const params = {
-    DS_MERCHANT_AMOUNT: amount,                 // céntimos (fijo desde backend)
-    DS_MERCHANT_ORDER: order,                   // 4–12 dígitos
+    DS_MERCHANT_AMOUNT: amount,
+    DS_MERCHANT_ORDER: order,
     DS_MERCHANT_MERCHANTCODE: MERCHANT_CODE,
-    DS_MERCHANT_CURRENCY: '978',                // EUR
+    DS_MERCHANT_CURRENCY: '978',
     DS_MERCHANT_TRANSACTIONTYPE: '0',
     DS_MERCHANT_TERMINAL: TERMINAL,
-    DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,     // servidor↔servidor (Vercel)
-    DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,              // Webflow OK
-    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,                // Webflow KO
+    DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
+    DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,
+    DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,
+
+    // 👉 Aquí guardamos nombre/email en MerchantData
+    DS_MERCHANT_MERCHANTDATA: JSON.stringify({ nombre, email }),
   };
 
   const Ds_MerchantParameters = toBase64(params);
