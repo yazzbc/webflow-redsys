@@ -1,32 +1,33 @@
 // pages/api/crear-operacion.js
 import crypto from 'crypto';
 
-// ---- Config (sandbox por defecto) ----
-const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE || '118436674'; // FUC real
-const TERMINAL = process.env.REDSYS_TERMINAL || '100';                  // Terminal real
-const SECRET_KEY = process.env.REDSYS_SECRET_KEY;                       // Clave real (Base64)
-const ENV = process.env.REDSYS_ENV || 'real';
+// 🚨 Necesario para que Vercel no intente parsear el body antes
+export const config = { api: { bodyParser: false } };
 
-// Importe fijo (en céntimos) → 50 = 0,50 €
-const PRICE_CENTS = String(process.env.PRICE_CENTS || '50');
+// ---- Config ----
+const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE || '999008881'; 
+const TERMINAL = process.env.REDSYS_TERMINAL || '1';                   
+const SECRET_KEY =
+  process.env.REDSYS_SECRET_KEY || 'sq7HjrUOBfKmC576ILgskD5srU870gJ7'; 
+const ENV = process.env.REDSYS_ENV || 'test';
 
-// URL Redsys
+// Importe fijo (en céntimos)
+const PRICE_CENTS = String(process.env.PRICE_CENTS || '3000'); 
+
 const REDSYS_URL =
   ENV === 'real'
     ? 'https://sis.redsys.es/sis/realizarPago'
     : 'https://sis-t.redsys.es:25443/sis/realizarPago';
 
-// URL de tu Webflow (para redirecciones)
-const FRONTEND =
-  process.env.FRONTEND_BASE_URL ||
-  'https://www.grupomoterodescubridoreshuelva.com';
+// URL de vuelta al frontend (Webflow)
+const FRONTEND = process.env.FRONTEND_BASE_URL
+  || 'https://www.grupomoterodescubridoreshuelva.com';
 
 // ---- Utils ----
 function toBase64(obj) {
   return Buffer.from(JSON.stringify(obj)).toString('base64');
 }
 
-// 3DES-CBC con IV=0 y ZERO-PADDING sobre Order
 function deriveKey(order, merchantKeyB64) {
   const key = Buffer.from(merchantKeyB64, 'base64');
   const iv = Buffer.alloc(8, 0);
@@ -43,19 +44,36 @@ function signParams(paramsBase64, order, merchantKeyB64) {
   return crypto.createHmac('sha256', k).update(paramsBase64).digest('base64');
 }
 
-// Genera un número de pedido único de 12 dígitos
+// ⚡ Nueva versión: siempre 12 dígitos y añade sufijo aleatorio
 function normalizeOrder() {
-  const timestamp = Date.now().toString().slice(-9);
-  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return (timestamp + rand).slice(0, 12);
+  const timestamp = Date.now().toString().slice(-9); // últimos 9 dígitos del timestamp
+  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0'); // 3 dígitos random
+  return (timestamp + rand).slice(0, 12); // total máx. 12
 }
 
-// ---- Handler ----
 export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers.host;
   const base = `${proto}://${host}`;
 
+  // ✅ Leer nombre y email enviados desde Webflow
+  let nombre = '';
+  let email = '';
+
+  if (req.method === 'POST') {
+    const raw = await new Promise((resolve) => {
+      let data = '';
+      req.on('data', (chunk) => (data += chunk));
+      req.on('end', () => resolve(data));
+    });
+    const paramsForm = new URLSearchParams(raw);
+    nombre = paramsForm.get('nombre') || '';
+    email = paramsForm.get('email') || '';
+  }
+
+  console.log("Form data recibido:", { nombre, email });
+
+  // ✅ Fijamos importe y generamos order único
   const amount = PRICE_CENTS;
   const order = normalizeOrder();
 
@@ -69,16 +87,17 @@ export default async function handler(req, res) {
     DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
     DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,
     DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,
+    DS_MERCHANT_MERCHANTDATA: JSON.stringify({ nombre, email }),
   };
 
   const Ds_MerchantParameters = toBase64(params);
   const Ds_Signature = signParams(Ds_MerchantParameters, params.DS_MERCHANT_ORDER, SECRET_KEY);
 
-  // Logs básicos
-  console.log('=== NUEVA OPERACIÓN REDSYS (estable) ===');
-  console.log('Order:', order);
-  console.log('Amount (cents):', amount);
-  console.log('Params:', params);
+  // 🔎 DEBUG extra
+  console.log("=== NUEVA OPERACIÓN REDSYS ===");
+  console.log("Order:", order);
+  console.log("Ds_MerchantParameters:", Ds_MerchantParameters);
+  console.log("Ds_Signature:", Ds_Signature);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(`<!doctype html>
