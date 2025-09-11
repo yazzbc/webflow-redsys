@@ -80,14 +80,12 @@ export default async function handler(req, res) {
       data.ds_order ||
       "";
 
-    // ---- Verificación de firma (robusta) ----
+    // ---- Verificación de firma ----
     const firmaLocalB64 = calcSignature(Ds_MerchantParameters, order);
-    const firmaRemotaB64 = Buffer.from(b64UrlToB64(Ds_Signature_raw), "base64").toString("base64");
-
-    // Logs de diagnóstico
-    console.log("Redsys notif:", { order, Ds_Response: data.Ds_Response });
-    console.log("Firma remota:", firmaRemotaB64);
-    console.log("Firma local :", firmaLocalB64);
+    const firmaRemotaB64 = Buffer.from(
+      b64UrlToB64(Ds_Signature_raw),
+      "base64"
+    ).toString("base64");
 
     let firmasIguales = false;
     try {
@@ -103,12 +101,12 @@ export default async function handler(req, res) {
       return res.status(400).send("bad signature");
     }
 
-    // Autorización (0–99 es OK; en muchas entidades "0000" es éxito)
+    // Autorización
     const code = String(data.Ds_Response ?? data.DS_RESPONSE ?? "");
     const autorizado =
       (Number.isFinite(+code) && +code >= 0 && +code <= 99) || code === "0000";
 
-    // MerchantData puede venir URL-encoded
+    // MerchantData (puede venir URL-encoded)
     let nombre = "";
     let email = "";
     try {
@@ -127,27 +125,29 @@ export default async function handler(req, res) {
       console.warn("MerchantData no es JSON válido:", data.Ds_MerchantData);
     }
 
-    // Normalizamos fecha/hora y el importe (céntimos → €)
+    // Normalizamos fecha/hora e importe
     const fecha = decodeURIComponent(data.Ds_Date || data.DS_DATE || "");
     const hora = decodeURIComponent(data.Ds_Hour || data.DS_HOUR || "");
+    const fechaOut = hora ? `${fecha} ${hora}` : fecha;
+
     const importeEuros =
       data.Ds_Amount || data.DS_AMOUNT
-        ? String(Number(data.Ds_Amount || data.DS_AMOUNT) / 100)
+        ? (Number(data.Ds_Amount || data.DS_AMOUNT) / 100).toFixed(2)
         : "";
 
-    // Guardamos en Sheets
+    // Guardar en Google Sheets en el orden de tus columnas
     await appendToSheet([
-      fecha,
-      hora,
-      order,
-      importeEuros,
-      autorizado ? "Sí" : "No",
-      code,
-      data.Ds_Card_Number || data.DS_CARD_NUMBER || "",
-      data.Ds_Card_Country || data.DS_CARD_COUNTRY || "",
-      data.Ds_MerchantCode || data.DS_MERCHANTCODE || "",
-      nombre,
-      email,
+      fechaOut, // A: Fecha (con hora)
+      order,    // B: Orden
+      importeEuros, // C: Importe (€ con 2 decimales)
+      code,     // D: Response
+      autorizado ? "Sí" : "No", // E: Autorizado
+      data.Ds_Card_Brand ?? data.DS_CARD_BRAND ??
+        data.Ds_SecurePayment ?? data.DS_SECUREPAYMENT ?? "", // F: Marca tarjeta
+      data.Ds_Card_Country ?? data.DS_CARD_COUNTRY ?? "",     // G: País tarjeta
+      data.Ds_MerchantCode ?? data.DS_MERCHANTCODE ?? "",     // H: Método
+      nombre,  // I: Nombre
+      email,   // J: Email
     ]);
 
     console.log("✅ Notificación procesada OK");
