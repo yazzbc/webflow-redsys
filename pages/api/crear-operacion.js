@@ -1,3 +1,6 @@
+// Al principio de crear-operacion.js
+export const config = { api: { bodyParser: false } };
+
 // pages/api/crear-operacion.js
 import crypto from 'crypto';
 
