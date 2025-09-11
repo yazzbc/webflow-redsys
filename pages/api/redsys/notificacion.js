@@ -30,13 +30,17 @@ function deriveKey(order, merchantKeyB64) {
   return Buffer.concat([cipher.update(padded), cipher.final()]);
 }
 
-function verifySignature(paramsB64, signatureReceived, order) {
+// Redsys usa a veces base64 “URL-safe” (- y _)
+function normalizeBase64(str) {
+  return (str || "").replace(/-/g, "+").replace(/_/g, "/");
+}
+
+function calculateSignature(paramsB64, order) {
   const k = deriveKey(order, SECRET_KEY);
-  const signatureCalc = crypto
+  return crypto
     .createHmac("sha256", k)
     .update(paramsB64)
     .digest("base64");
-  return signatureCalc === signatureReceived;
 }
 
 // ---- Google Sheets helper ----
@@ -72,9 +76,14 @@ export default async function handler(req, res) {
 
     const decoded = JSON.parse(base64UrlDecode(Ds_MerchantParameters));
 
+    // 🔎 Log firmas
+    const firmaLocal = calculateSignature(Ds_MerchantParameters, decoded.Ds_Order);
+    console.log("🔎 Firma Redsys (Ds_Signature):", Ds_Signature);
+    console.log("🔎 Firma calculada (local):", firmaLocal);
+
     // Verificar firma
-    if (!verifySignature(Ds_MerchantParameters, Ds_Signature, decoded.Ds_Order)) {
-      console.error("Firma inválida en notificación Redsys");
+    if (normalizeBase64(firmaLocal) !== normalizeBase64(Ds_Signature)) {
+      console.error("❌ Firma inválida en notificación Redsys");
       return res.status(400).send("bad signature");
     }
 
@@ -88,7 +97,7 @@ export default async function handler(req, res) {
       console.warn("MerchantData no es JSON válido:", decoded.Ds_MerchantData);
     }
 
-    console.log("Notificación Redsys recibida:", {
+    console.log("✅ Notificación Redsys recibida:", {
       order: decoded.Ds_Order,
       autorizado,
       nombre: merchantData.nombre,
