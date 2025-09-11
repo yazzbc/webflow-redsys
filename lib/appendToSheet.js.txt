@@ -1,0 +1,47 @@
+// lib/appendToSheet.js
+import { google } from "googleapis";
+import { JWT } from "google-auth-library";
+
+// 🔑 Autenticación con el service account que ya creaste
+const auth = new JWT({
+  email: process.env.GOOGLE_CLIENT_EMAIL,
+  key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
+
+const sheets = google.sheets({ version: "v4", auth });
+
+// Hoja principal (ya la usas)
+const SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const RANGE_MAIN = "Hoja1!A:K"; // la hoja principal donde ya escribes
+const RANGE_EXTRA = "Hoja2!A:K"; // la hoja “Excel” opcional
+
+// 👉 Escribe en la hoja principal
+export async function appendToSheet(row) {
+  try {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: RANGE_MAIN,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [row] },
+    });
+    console.log("✅ Row añadida en Google Sheets principal");
+  } catch (err) {
+    console.error("❌ Error escribiendo en Sheets principal:", err);
+  }
+}
+
+// 👉 Escribe en la hoja extra tipo “Excel”
+export async function appendToExcelSheet(row) {
+  try {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: RANGE_EXTRA,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [row] },
+    });
+    console.log("✅ Row añadida en Hoja Excel (extra)");
+  } catch (err) {
+    console.error("❌ Error escribiendo en Hoja Excel:", err);
+  }
+}
