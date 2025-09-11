@@ -87,7 +87,7 @@ export default async function handler(req, res) {
     DS_MERCHANT_MERCHANTURL: `${base}/api/redsys/notificacion`,
     DS_MERCHANT_URLOK: `${FRONTEND}/checkout/gracias`,
     DS_MERCHANT_URLKO: `${FRONTEND}/checkout/error`,
-    DS_MERCHANT_MERCHANTDATA: JSON.stringify({ nombre, email }),
+    DS_MERCHANT_MERCHANTDATA: encodeURIComponent(JSON.stringify({ nombre, email })),
   };
 
   const Ds_MerchantParameters = toBase64(params);
