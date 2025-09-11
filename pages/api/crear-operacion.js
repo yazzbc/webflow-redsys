@@ -6,13 +6,14 @@ export const config = { api: { bodyParser: false } };
 
 // ---- Config ----
 const MERCHANT_CODE = process.env.REDSYS_MERCHANT_CODE || "999008881";
-const TERMINAL = process.env.REDSYS_TERMINAL || "1";
+// 👇 IMPORTANTE: el terminal real debe ser "001", no "1" ni "100"
+const TERMINAL = process.env.REDSYS_TERMINAL || "001";
 const SECRET_KEY =
   process.env.REDSYS_SECRET_KEY || "sq7HjrUOBfKmC576ILgskD5srU870gJ7";
 const ENV = process.env.REDSYS_ENV || "test";
 
-// Importe fijo (en céntimos)
-const PRICE_CENTS = String(process.env.PRICE_CENTS || "3000");
+// Importe fijo (en céntimos) → ej: "50" = 0,50 €
+const PRICE_CENTS = String(process.env.PRICE_CENTS || "50");
 
 const REDSYS_URL =
   ENV === "real"
