@@ -73,9 +73,6 @@ export default async function handler(req, res) {
     email = paramsForm.get('email') || '';
   }
 
-  // 🔎 DEBUG
-  console.log("Form data recibido:", { nombre, email });
-
   // ✅ Fijamos el importe desde variable de entorno
   const amount = PRICE_CENTS;
   const order = normalizeOrder(Date.now());
