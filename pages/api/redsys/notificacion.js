@@ -119,6 +119,8 @@ async function appendToExcelSheet(row) {
   }
 }
 
+// ... resto de tu código igual ...
+
 // ==== Handler principal ====
 export default async function handler(req, res) {
   try {
@@ -162,14 +164,13 @@ export default async function handler(req, res) {
 
     const autorizado = responseCode >= 0 && responseCode <= 99;
 
-    // 👇 MerchantData: nombre/email (por si llega), y guardamos el bruto para la columna "MerchantData"
+    // 👇 MerchantData
     let nombre = '';
     let email = '';
     let merchantDataRaw = data.Ds_MerchantData || data.DS_MERCHANTDATA || '';
 
     if (merchantDataRaw) {
       try {
-        // A veces viene URL-encoded
         const maybeDecoded = decodeURIComponent(merchantDataRaw);
         const extra = JSON.parse(maybeDecoded);
         nombre = extra.nombre || '';
@@ -179,9 +180,7 @@ export default async function handler(req, res) {
           const extra = JSON.parse(merchantDataRaw);
           nombre = extra.nombre || '';
           email = extra.email || '';
-        } catch {
-          // Si no es JSON, lo dejamos tal cual en la columna MerchantData
-        }
+        } catch {}
       }
     }
 
@@ -194,15 +193,12 @@ export default async function handler(req, res) {
       email,
     });
 
-    // 🗓️ Fecha con formato como en tu hoja (zona Madrid, 24h)
     const fechaOut = new Date()
       .toLocaleString('es-ES', { timeZone: 'Europe/Madrid', hour12: false })
       .replace(',', '');
 
-    // 💶 Importe en euros (2 decimales)
     const importeEuros = data.Ds_Amount ? (Number(data.Ds_Amount) / 100).toFixed(2) : '';
 
-    // 🧾 Método de pago (siempre que exista, con varios alias habituales)
     const metodo =
       data.Ds_ProcessedPayMethod ||
       data.Ds_PaymentMethod ||
@@ -210,8 +206,6 @@ export default async function handler(req, res) {
       data.DS_PAYMENTMETHOD ||
       '';
 
-    // Fila con EXACTAMENTE el orden de tu hoja:
-    // Fecha | Orden | Importe | Response | Autorizado | Marca tarjeta | País tarjeta | Método | MerchantData | Nombre | Email
     const row = [
       fechaOut,
       order || '',
@@ -226,10 +220,17 @@ export default async function handler(req, res) {
       email,
     ];
 
-    // Guardado principal (sin cambios en tu flujo)
-    await appendToSheet(row);
+    // 🚨 LOGS ESPECIALES PARA GOOGLE SHEETS
+    console.log("🟡 Intentando añadir fila a Google Sheets:", row);
 
-    // Guardado extra opcional (activable con LOG_TO_EXCEL="true")
+    try {
+      await appendToSheet(row);
+      console.log("✅ Registro añadido correctamente en Google Sheets");
+    } catch (err) {
+      console.error("❌ Error al añadir a Google Sheets:", err);
+    }
+
+    // Hoja extra (si está activada)
     await appendToExcelSheet(row);
 
     res.status(200).send('OK');
